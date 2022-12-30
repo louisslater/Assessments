@@ -10,10 +10,12 @@ class CellType(Enum):
     NUMBER = 1
     BOMB = 2
     FLAG = 3
+    DUMMY = 4
 
 class CellVisibility(Enum):
     VISIBLE=True
     HIDDEN=False
+
 
 
 class Cell:
@@ -28,18 +30,24 @@ class Cell:
         return self.cell_type
 
     def is_visible(self):
-        return self.visibility == self.VISIBLE
+        return self.visibility == CellVisibility.VISIBLE
+    
+    def set_visible(self):
+        self.visibility = CellVisibility.VISIBLE
+
+    def set_bomb_count(self, bomb_count):
+        self.adjacent_bomb_count = bomb_count
+        self.cell_type = CellType.NUMBER
 
 
-class Grid:
+class Board:
     def __init__(self, size_x, size_y):
         self.size_x = size_x
         self.size_y = size_y
         
         self.cells=[[0 for y in range(size_y)] for x in range(size_x)]
 
-
-    def create_grid(self):
+    def create_board(self):
         for y in range(self.size_y):
             for x in range(self.size_x):
                 cell = Cell(CellType.EMPTY,CellVisibility.HIDDEN,0)
@@ -47,7 +55,7 @@ class Grid:
 
     def get_cell(self, x, y):
         if x<0 or x >= self.size_x or y<0 or y>= self.size_y:
-            return Cell(CellType.EMPTY,CellVisibility.HIDDEN,0)
+            return Cell(CellType.DUMMY,CellVisibility.HIDDEN,0)
 
         return self.cells[x][y]
             
@@ -73,7 +81,6 @@ class Grid:
             current_bomb_count+=1
             cell_list.remove(bomb_index)
 
-    
     def number_of_bombs_near_cell(self,x,y):
         bomb_count=0
         for x_offset in range(-1, 2):
@@ -86,21 +93,36 @@ class Grid:
         for y in range(self.size_y):
             for x in range(self.size_x):
                 bomb_count=self.number_of_bombs_near_cell(x,y)
-                if self.get_cell(x,y).cell_type == CellType.EMPTY:
-                    self.cells[x][y] = Cell(CellType.NUMBER, CellVisibility.VISIBLE, bomb_count)
+                if self.get_cell(x,y).cell_type == CellType.EMPTY and bomb_count != 0:
+                    cell = self.cells[x][y]
+                    cell.set_bomb_count(bomb_count)
 
-    def reveal_cell(self,new_cell_position):
-        index = 0
-        for y in range(self.size_y):
-            for x in range(self.size_x):
-                index+=1
-                cell_position = self.cells[index-1]
-                if cell_position[0] == new_cell_position[0] and cell_position[1] == new_cell_position[1]:
-                    cell_position[3]=False
+    def reveal_cells(self,x,y):
+        for x_offset in range(-1, 2):
+            for y_offset in range(-1, 2):
+                cell = self.get_cell(x + x_offset, y + y_offset)
+                centre_cell = self.get_cell(x, y)
 
+                if cell.get_cell_type() == CellType.DUMMY or cell.is_visible():
+                    continue
 
+                centre_cell.set_visible()
 
-    def display_grid(self):
+                if centre_cell.get_cell_type() == CellType.EMPTY:
+                    cell.set_visible()
+                    self.reveal_cells(x + x_offset, y + y_offset)
+
+    def get_coords(self,user_input):
+        coords=str(user_input).split()
+        x=int(coords[0])
+        y=int(coords[1])
+        return [x,y]
+
+    def set_cell_visible(self, coords):
+        cell = self.cells[coords[POSITION_X]][coords[POSITION_Y]]
+        cell.set_visible()
+
+    def print_board(self):
         icons={
         0:"\033[38;5;0m"+".",
         1:"\033[38;5;4m"+"1", # numbers
@@ -135,6 +157,10 @@ class Grid:
             print("\033[38;5;7m"+str(y).zfill(2), end="  ")
             for x in range(self.size_x):
                 cell = self.get_cell(x,y)
+
+                if not cell.is_visible():
+                    print(icons.get(12),end="  ")
+                    continue
                 if cell.get_cell_type() == CellType.BOMB:
                     print(icons.get(10),end="  ")
                 elif cell.get_cell_type() == CellType.NUMBER:
@@ -146,15 +172,19 @@ class Grid:
 
 
 
-grid1 = Grid(12,12)
+Board1 = Board(9,9)
 
-grid1.create_grid()
+Board1.create_board()
 
+Board1.print_board()
 
+user_input=input("enter input:")
 
-#grid1.reveal_cell([0,0])
+coords=Board1.get_coords(user_input)
 
-grid1.add_bombs(2,[1,1])
-grid1.set_bomb_counts()
+Board1.add_bombs(10,coords)
+Board1.set_bomb_counts()
 
-grid1.display_grid()
+Board1.reveal_cells(coords[POSITION_X],coords[POSITION_Y])
+
+Board1.print_board()

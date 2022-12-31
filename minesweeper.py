@@ -1,6 +1,5 @@
 import random
 from enum import Enum
-#import numpy
 
 POSITION_X=0
 POSITION_Y=1
@@ -9,22 +8,24 @@ class CellType(Enum):
     EMPTY = 0
     NUMBER = 1
     BOMB = 2
-    FLAG = 3
-    DUMMY = 4
+    DUMMY = 3
 
 class CellVisibility(Enum):
     VISIBLE=True
     HIDDEN=False
 
+class CellFlagged(Enum):
+    FLAG=True
+    NO_FLAG=False
+
 
 
 class Cell:
-    def __init__(self, cell_type, visibility, adjacent_bomb_count):
-        # self.x=x
-        # self.y=y
+    def __init__(self, cell_type, visibility, adjacent_bomb_count, flag):
         self.cell_type=cell_type
         self.visibility=visibility
         self.adjacent_bomb_count = adjacent_bomb_count
+        self.flag=flag
 
     def get_cell_type(self):
         return self.cell_type
@@ -39,6 +40,15 @@ class Cell:
         self.adjacent_bomb_count = bomb_count
         self.cell_type = CellType.NUMBER
 
+    def is_flagged(self):
+        return self.flag == CellFlagged.FLAG
+
+    def toggle_flag(self):
+        if self.flag == CellFlagged.NO_FLAG:
+            self.flag = CellFlagged.FLAG
+        else:
+            self.flag = CellFlagged.NO_FLAG
+
 
 class Board:
     def __init__(self, size_x, size_y):
@@ -50,12 +60,12 @@ class Board:
     def create_board(self):
         for y in range(self.size_y):
             for x in range(self.size_x):
-                cell = Cell(CellType.EMPTY,CellVisibility.HIDDEN,0)
+                cell = Cell(CellType.EMPTY,CellVisibility.HIDDEN,0,CellFlagged.NO_FLAG)
                 self.cells[x][y] = cell
 
     def get_cell(self, x, y):
         if x<0 or x >= self.size_x or y<0 or y>= self.size_y:
-            return Cell(CellType.DUMMY,CellVisibility.HIDDEN,0)
+            return Cell(CellType.DUMMY,CellVisibility.HIDDEN,0,CellFlagged.NO_FLAG)
 
         return self.cells[x][y]
             
@@ -67,19 +77,28 @@ class Board:
         y = index // self.size_x
         return [x,y]
 
-    def add_bombs(self,total_bomb_count,player_start_position):
+    def add_bombs(self,total_bomb_count,player_start_x,player_start_y):
         current_bomb_count=0
-        cell_list=[i for i in range(self.size_x * self.size_y)]
-        cell_list.remove(self.get_index(player_start_position))
+        cell_index_list=[i for i in range(self.size_x * self.size_y)]
+
+        for x_offset in range(-1, 2):
+            for y_offset in range(-1, 2):
+
+                cell_position = [player_start_x + x_offset, player_start_y + y_offset]
+
+                if cell_position[0]<0 or cell_position[0] >= self.size_x or cell_position[1]<0 or cell_position[1]>= self.size_y:
+                    continue
+
+                cell_index_list.remove(self.get_index(cell_position))
 
         while current_bomb_count < total_bomb_count:
-            cell_position=random.randint(0,len(cell_list)-1)
-            bomb_index=cell_list[cell_position]
+            cell_position=random.randint(0,len(cell_index_list)-1)
+            bomb_index=cell_index_list[cell_position]
             bomb_position=self.get_position(bomb_index)
  
-            self.cells[bomb_position[POSITION_X]][bomb_position[POSITION_Y]] = Cell(CellType.BOMB, CellVisibility.HIDDEN, 0)
+            self.cells[bomb_position[POSITION_X]][bomb_position[POSITION_Y]] = Cell(CellType.BOMB, CellVisibility.HIDDEN, 0, CellFlagged.NO_FLAG)
             current_bomb_count+=1
-            cell_list.remove(bomb_index)
+            cell_index_list.remove(bomb_index)
 
     def number_of_bombs_near_cell(self,x,y):
         bomb_count=0
@@ -111,12 +130,17 @@ class Board:
                 if centre_cell.get_cell_type() == CellType.EMPTY:
                     cell.set_visible()
                     self.reveal_cells(x + x_offset, y + y_offset)
+                    
+    def toggle_flag(self,x,y):
+        cell = self.get_cell(x, y)
+        cell.toggle_flag()
 
     def get_coords(self,user_input):
         coords=str(user_input).split()
         x=int(coords[0])
         y=int(coords[1])
-        return [x,y]
+        flag=str(coords[2])
+        return [x,y,flag]
 
     def set_cell_visible(self, coords):
         cell = self.cells[coords[POSITION_X]][coords[POSITION_Y]]
@@ -127,7 +151,7 @@ class Board:
         0:"\033[38;5;0m"+".",
         1:"\033[38;5;4m"+"1", # numbers
         2:"\033[38;5;123m"+"2",
-        3:"\033[38;5;2m"+"3",
+        3:"\033[38;5;82m"+"3",
         4:"\033[38;5;190m"+"4",
         5:"\033[38;5;215m"+"5",
         6:"\033[38;5;202m"+"6",
@@ -135,7 +159,7 @@ class Board:
         8:"\033[38;5;93m"+"8",
         9:"\033[38;5;2m"+"\u25fb",
         10:"\033[38;5;1m"+"x",
-        11:"\033[38;5;15m"+"x",
+        11:"\033[38;5;196m"+"\u2691",
         12:"\033[38;5;34m"+"\u25a1"
         }
 
@@ -158,6 +182,9 @@ class Board:
             for x in range(self.size_x):
                 cell = self.get_cell(x,y)
 
+                if cell.is_flagged():
+                    print(icons.get(11),end="  ")
+                    continue
                 if not cell.is_visible():
                     print(icons.get(12),end="  ")
                     continue
@@ -172,19 +199,36 @@ class Board:
 
 
 
-Board1 = Board(9,9)
+board1 = Board(8,8)
 
-Board1.create_board()
+board1.create_board()
 
-Board1.print_board()
+board1.print_board()
+
+file = open("leaderboard.txt", "a")
+
+user_name=input("enter name:")
+
+file.write(user_name)
+file.close()
+
+print(file.read())
 
 user_input=input("enter input:")
 
-coords=Board1.get_coords(user_input)
+coords=board1.get_coords(user_input)
 
-Board1.add_bombs(10,coords)
-Board1.set_bomb_counts()
+board1.add_bombs(15,coords[POSITION_X],coords[POSITION_Y])
+board1.set_bomb_counts()
 
-Board1.reveal_cells(coords[POSITION_X],coords[POSITION_Y])
+while True:
+    if coords[2] == "f":
+        board1.toggle_flag(coords[POSITION_X],coords[POSITION_Y])
+    else:
+        board1.reveal_cells(coords[POSITION_X],coords[POSITION_Y])
 
-Board1.print_board()
+    board1.print_board()
+
+    user_input=input("enter input:")
+
+    coords=board1.get_coords(user_input)

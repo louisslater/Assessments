@@ -1,4 +1,7 @@
-# Minesweeper
+# Minesweeper game
+# Louis Slater
+# 03/01/23
+# for first term programming assessment
 
 # imported modules
 import random
@@ -304,6 +307,13 @@ class Board:
         print("")
 
         print(end="    ")
+
+        for x in range(self.size_x):# prints the horizontal numbers on the board
+            print(x // 10,end="  ")
+        print("")
+        
+        print(end="    ")
+
         for x in range(self.size_x):# prints the horizontal numbers on the board
             print(x % 10,end="  ")
         print("")
